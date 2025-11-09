@@ -1,0 +1,113 @@
+# RAG System Configuration - FREE ALTERNATIVES (No OpenAI needed!)
+
+# Document Processing Configuration
+document_processing:
+  extraction:
+    method: "pdfplumber"
+    ocr_enabled: false
+    language: "eng"
+  
+  chunking:
+    chunk_size: 1000
+    chunk_overlap: 200
+    separators:
+      - "\n\n"
+      - "\n"
+      - " "
+      - ""
+    length_function: "character"
+
+# Embedding Configuration - Using FREE HuggingFace models
+embeddings:
+  provider: "huggingface"  # FREE - runs locally!
+  model: "sentence-transformers/all-MiniLM-L6-v2"  # Fast, small, accurate
+  dimensions: 384  # This model uses 384 dimensions
+  batch_size: 32
+  
+  # Alternative free models:
+  alternatives:
+    better_quality: "sentence-transformers/all-mpnet-base-v2"  # Better quality, slower
+    multilingual: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+# Vector Store Configuration
+vector_store:
+  type: "chromadb"  # FREE - local storage
+  
+  chromadb:
+    persist_directory: "./data/chroma_db"
+    collection_name: "rag_documents_free"
+    distance_metric: "cosine"
+
+# Retrieval Configuration
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.7
+  strategy: "similarity"
+  lambda_mult: 0.5
+
+# Generation Configuration - Using FREE Ollama (local LLM)
+generation:
+  provider: "ollama"  # FREE - runs locally!
+  model: "llama2"  # or "mistral", "codellama", "phi"
+  temperature: 0.7
+  max_tokens: 500
+  
+  # Ollama connection
+  ollama:
+    base_url: "http://localhost:11434"
+    models_available:
+      - "llama2"        # Good general purpose
+      - "mistral"       # Fast and accurate
+      - "codellama"     # For code-related queries
+      - "phi"           # Smallest, fastest
+  
+  prompts:
+    system_prompt: |
+      You are an AI assistant helping users find information from documents.
+      Use the provided context to answer questions accurately and concisely.
+      If you cannot answer from the context, say so clearly.
+    
+    qa_template: |
+      Context: {context}
+      
+      Question: {question}
+      
+      Answer based on the context provided:
+
+# Agent Configuration
+agent:
+  enabled: true
+  type: "conversational"
+  max_iterations: 10
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/rag_system.log"
+
+# Performance Configuration
+performance:
+  cache:
+    enabled: true
+    type: "memory"
+    ttl: 3600
+  
+  batch_processing:
+    enabled: true
+    batch_size: 10
+
+# Data Directories
+directories:
+  data: "./data"
+  documents: "./data/documents"
+  processed: "./data/processed"
+  cache: "./data/cache"
+  logs: "./logs"
+
