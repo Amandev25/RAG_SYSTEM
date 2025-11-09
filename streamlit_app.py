@@ -129,13 +129,19 @@ def chunk_text(text, chunk_size=500, overlap=50):
         start = end - overlap
     return chunks
 
-# Initialize session state
+# Initialize session state - MUST be before any other Streamlit operations
 if 'initialized' not in st.session_state:
+    st.session_state.initialized = False
+    st.session_state.hf_token = ""
+    st.session_state.chat_history = []
+    st.session_state.model = None
+    st.session_state.collection = None
+
+# Load models after session state is initialized
+if not st.session_state.initialized:
     with st.spinner('🚀 Loading models...'):
         st.session_state.model, st.session_state.collection = load_models()
         st.session_state.initialized = True
-        st.session_state.hf_token = ""
-        st.session_state.chat_history = []
 
 # Header
 st.markdown('<div class="main-header">🤖 RAG System</div>', unsafe_allow_html=True)
@@ -170,46 +176,55 @@ with st.sidebar:
     
     if uploaded_file:
         if st.button("🚀 Process", type="primary", use_container_width=True):
-            with st.spinner("Processing..."):
-                try:
-                    import tempfile
-                    import os
-                    
-                    # Save temp file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
-                        tmp.write(uploaded_file.getvalue())
-                        tmp_path = tmp.name
-                    
-                    # Extract text
-                    if uploaded_file.name.endswith('.pdf'):
-                        text = process_pdf(tmp_path)
-                    else:
-                        text = uploaded_file.getvalue().decode('utf-8')
-                    
-                    if text:
-                        # Chunk text
-                        chunks = chunk_text(text)
+            # Ensure models are loaded
+            if not st.session_state.initialized or st.session_state.model is None:
+                st.error("⚠️ Models not loaded yet. Please wait a moment and try again.")
+            else:
+                with st.spinner("Processing..."):
+                    try:
+                        import tempfile
+                        import os
                         
-                        # Create embeddings
-                        embeddings = st.session_state.model.encode(chunks)
+                        # Save temp file
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
+                            tmp.write(uploaded_file.getvalue())
+                            tmp_path = tmp.name
                         
-                        # Add to vector store
-                        st.session_state.collection.add(
-                            documents=chunks,
-                            embeddings=embeddings.tolist(),
-                            metadatas=[{'source': uploaded_file.name} for _ in chunks],
-                            ids=[f"doc_{int(time.time())}_{i}" for i in range(len(chunks))]
-                        )
+                        # Extract text
+                        if uploaded_file.name.endswith('.pdf'):
+                            text = process_pdf(tmp_path)
+                        else:
+                            text = uploaded_file.getvalue().decode('utf-8')
                         
-                        st.success(f"✅ Added {len(chunks)} chunks!")
-                        os.unlink(tmp_path)
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ No text extracted")
-                        os.unlink(tmp_path)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                        if text:
+                            # Chunk text
+                            chunks = chunk_text(text)
+                            
+                            # Create embeddings
+                            embeddings = st.session_state.model.encode(chunks)
+                            
+                            # Add to vector store
+                            st.session_state.collection.add(
+                                documents=chunks,
+                                embeddings=embeddings.tolist(),
+                                metadatas=[{'source': uploaded_file.name} for _ in chunks],
+                                ids=[f"doc_{int(time.time())}_{i}" for i in range(len(chunks))]
+                            )
+                            
+                            st.success(f"✅ Added {len(chunks)} chunks!")
+                            os.unlink(tmp_path)
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ No text extracted")
+                            os.unlink(tmp_path)
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                        if 'tmp_path' in locals():
+                            try:
+                                os.unlink(tmp_path)
+                            except:
+                                pass
     
     if st.button("🔄 Clear Chat"):
         st.session_state.chat_history = []
