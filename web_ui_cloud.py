@@ -368,6 +368,7 @@ if ask_button and question:
         
         # Try to generate answer with LLM first, fallback to local RAG
         answer = None
+        use_local_rag = True  # Default to local RAG
         
         if st.session_state.hf_token:
             # Generate answer with LLM
@@ -381,9 +382,13 @@ Question: {question}
 Answer:"""
             
             answer = query_huggingface(prompt, st.session_state.hf_token)
+            
+            # Check if answer is an error message - if so, fall back to local RAG
+            if answer and not (answer.startswith("⚠️") or answer.startswith("❌") or "unavailable" in answer.lower()):
+                use_local_rag = False
         
-        # If no LLM answer, use local RAG-based answer
-        if not answer:
+        # Use local RAG-based answer if no valid LLM response
+        if use_local_rag:
             answer = generate_answer_from_context(question, results['documents'][0] if results['documents'] else [])
         
         # Add to chat history
