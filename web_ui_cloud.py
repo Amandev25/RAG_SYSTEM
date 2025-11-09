@@ -155,7 +155,20 @@ def query_huggingface(prompt, hf_token=None):
         except Exception:
             continue
     
-    return "⚠️ All models are currently unavailable. Please add a HuggingFace token for priority access or try again later."
+    # If all models fail, provide helpful message
+    return """⚠️ AI models are currently unavailable. To get full AI-generated answers:
+
+📌 Add a FREE HuggingFace token (takes 2 minutes):
+   1. Get token: https://huggingface.co/settings/tokens
+   2. In Streamlit Cloud: Settings → Secrets, add:
+      HF_TOKEN = "your_token_here"
+   3. Reboot the app
+
+💡 With a token you get:
+   ✅ Priority access to AI models
+   ✅ No rate limits  
+   ✅ Faster responses
+   ✅ 100% FREE!"""
 
 # Initialize session state
 if 'initialized' not in st.session_state:
