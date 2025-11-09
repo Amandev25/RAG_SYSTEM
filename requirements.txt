@@ -1,4 +1,4 @@
-# Core dependencies - Streamlit Cloud optimized
+# Streamlit Cloud - Python 3.13 Compatible
 streamlit==1.30.0
 pyyaml==6.0.1
 
@@ -6,20 +6,20 @@ pyyaml==6.0.1
 pdfplumber==0.10.3
 PyPDF2==3.0.1
 
-# Embeddings - lightweight version
-sentence-transformers==2.2.2
+# Embeddings
+sentence-transformers>=2.3.0
 
-# Vector store - use older stable version
-chromadb==0.4.22
+# Vector store
+chromadb>=0.4.18,<0.5.0
 
-# LangChain (for text splitting)
-langchain-text-splitters==0.2.0
-langchain-core==0.2.0
+# LangChain (for text splitting)  
+langchain-text-splitters>=0.0.1
+langchain-core>=0.1.0
 
 # HTTP client
 requests==2.31.0
 
-# Utilities - minimal versions
-pydantic==2.5.0
-numpy==1.24.3
+# Utilities - Python 3.13 compatible
+pydantic>=2.0.0
+numpy>=1.26.0
 
