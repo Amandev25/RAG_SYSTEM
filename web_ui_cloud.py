@@ -189,15 +189,37 @@ with st.sidebar:
     
     # Get HuggingFace token from secrets or input
     if 'hf_token' not in st.session_state:
-        st.session_state.hf_token = st.secrets.get("HF_TOKEN", "") if hasattr(st, 'secrets') else ""
+        try:
+            # Try to read from Streamlit secrets (both syntaxes)
+            if "HF_TOKEN" in st.secrets:
+                st.session_state.hf_token = st.secrets["HF_TOKEN"]
+            else:
+                st.session_state.hf_token = ""
+        except Exception as e:
+            st.session_state.hf_token = ""
     
-    if not st.session_state.hf_token:
-        with st.expander("🔑 HuggingFace Token (Optional)", expanded=True):
-            st.info("Enter your HF token for faster responses. [Get one free here](https://huggingface.co/settings/tokens)")
+    # Show token status
+    if st.session_state.hf_token:
+        st.success("✅ HuggingFace token configured!")
+    else:
+        with st.expander("🔑 HuggingFace Token Required", expanded=True):
+            st.warning("⚠️ Token not found in secrets. Add it for AI models to work!")
+            st.info("""
+            **How to add token:**
+            1. Get token: https://huggingface.co/settings/tokens
+            2. In Streamlit Cloud: ⚙️ Settings → Secrets
+            3. Add this line:
+               ```
+               HF_TOKEN = "your_token_here"
+               ```
+            4. Save & Reboot app
+            
+            **Or enter temporarily below (won't persist):**
+            """)
             hf_input = st.text_input("Token:", type="password", key="hf_input")
-            if st.button("Save Token"):
+            if st.button("Save Token (This Session Only)"):
                 st.session_state.hf_token = hf_input
-                st.success("✅ Token saved!")
+                st.success("✅ Token saved for this session!")
                 st.rerun()
     
     # Get statistics
