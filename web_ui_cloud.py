@@ -116,6 +116,19 @@ def initialize_system():
 def query_huggingface(prompt, hf_token=None):
     """Query HuggingFace API with multiple model fallbacks"""
     
+    # Debug: Check if token is provided
+    if not hf_token or hf_token == "":
+        return """❌ No HuggingFace token provided!
+
+**Quick Fix:**
+1. Look in the LEFT SIDEBAR
+2. Find the "🔑 HuggingFace Token Required" section
+3. Paste your token in the text box
+4. Click "Save Token"
+5. Try asking again
+
+**Get a FREE token:** https://huggingface.co/settings/tokens"""
+    
     # Try multiple models in order of preference
     models = [
         "meta-llama/Meta-Llama-3-8B-Instruct",
@@ -124,7 +137,7 @@ def query_huggingface(prompt, hf_token=None):
         "google/flan-t5-large"
     ]
     
-    headers = {"Authorization": f"Bearer {hf_token}"} if hf_token else {}
+    headers = {"Authorization": f"Bearer {hf_token}"}
     
     payload = {
         "inputs": prompt,
