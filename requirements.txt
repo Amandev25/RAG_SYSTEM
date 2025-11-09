@@ -1,28 +1,25 @@
-# Core dependencies for Streamlit Cloud
-streamlit>=1.30.0
-pyyaml>=6.0
+# Core dependencies - Streamlit Cloud optimized
+streamlit==1.30.0
+pyyaml==6.0.1
 
 # Document processing
-pdfplumber>=0.10.0
-PyPDF2>=3.0.0
+pdfplumber==0.10.3
+PyPDF2==3.0.1
 
-# Embeddings and ML
-sentence-transformers>=5.0.0
-torch>=2.0.0
+# Embeddings - lightweight version
+sentence-transformers==2.2.2
 
-# Vector store
-chromadb>=0.4.0
+# Vector store - use older stable version
+chromadb==0.4.22
 
 # LangChain (for text splitting)
-langchain-text-splitters>=1.0.0
-langchain-core>=1.0.0
+langchain-text-splitters==0.2.0
+langchain-core==0.2.0
 
-# HTTP client for HuggingFace API
-requests>=2.31.0
-httpx>=0.27.0
+# HTTP client
+requests==2.31.0
 
-# Utilities
-rich>=13.0.0
-pydantic>=2.0.0
-numpy>=1.24.0
+# Utilities - minimal versions
+pydantic==2.5.0
+numpy==1.24.3
 
