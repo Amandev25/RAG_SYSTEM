@@ -114,12 +114,17 @@ def initialize_system():
     return model, collection
 
 def query_huggingface(prompt, hf_token=None):
-    """Query HuggingFace Inference API"""
-    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+    """Query HuggingFace API with multiple model fallbacks"""
     
-    headers = {}
-    if hf_token:
-        headers["Authorization"] = f"Bearer {hf_token}"
+    # Try multiple models in order of preference
+    models = [
+        "meta-llama/Meta-Llama-3-8B-Instruct",
+        "mistralai/Mistral-7B-Instruct-v0.3",
+        "microsoft/Phi-3-mini-4k-instruct",
+        "google/flan-t5-large"
+    ]
+    
+    headers = {"Authorization": f"Bearer {hf_token}"} if hf_token else {}
     
     payload = {
         "inputs": prompt,
@@ -131,16 +136,26 @@ def query_huggingface(prompt, hf_token=None):
         }
     }
     
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-        
-        if isinstance(result, list) and len(result) > 0:
-            return result[0].get('generated_text', 'No response generated')
-        return str(result)
-    except Exception as e:
-        return f"Error: {str(e)}"
+    for model in models:
+        try:
+            API_URL = f"https://api-inference.huggingface.co/models/{model}"
+            response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if isinstance(result, list) and len(result) > 0:
+                    return result[0].get('generated_text', 'No response generated')
+                return str(result)
+            elif response.status_code == 503:
+                # Model is loading, try next one
+                continue
+            elif response.status_code != 410:
+                # Not a "gone" error, might be rate limit, try next
+                continue
+        except Exception:
+            continue
+    
+    return "⚠️ All models are currently unavailable. Please add a HuggingFace token for priority access or try again later."
 
 # Initialize session state
 if 'initialized' not in st.session_state:
