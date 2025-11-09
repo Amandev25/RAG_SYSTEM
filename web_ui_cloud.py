@@ -113,21 +113,33 @@ def initialize_system():
     
     return model, collection
 
+def generate_answer_from_context(question, context_docs):
+    """Generate answer directly from retrieved documents (no LLM needed!)"""
+    if not context_docs:
+        return "I couldn't find any relevant information in your documents to answer this question."
+    
+    # Combine all retrieved context
+    full_context = "\n\n".join(context_docs)
+    
+    # Simple extractive answer: return most relevant chunks
+    answer = f"""Based on your documents, here's what I found:
+
+📄 **Relevant Information:**
+
+{full_context[:1500]}
+
+---
+
+💡 **Note:** This is a direct extract from your documents. For AI-generated summaries and more natural answers, add a HuggingFace token (FREE): https://huggingface.co/settings/tokens"""
+    
+    return answer
+
 def query_huggingface(prompt, hf_token=None):
     """Query HuggingFace API with multiple model fallbacks"""
     
-    # Debug: Check if token is provided
+    # If no token, return None to trigger local answer generation
     if not hf_token or hf_token == "":
-        return """❌ No HuggingFace token provided!
-
-**Quick Fix:**
-1. Look in the LEFT SIDEBAR
-2. Find the "🔑 HuggingFace Token Required" section
-3. Paste your token in the text box
-4. Click "Save Token"
-5. Try asking again
-
-**Get a FREE token:** https://huggingface.co/settings/tokens"""
+        return None
     
     # Try multiple models in order of preference
     models = [
@@ -354,8 +366,12 @@ if ask_button and question:
         # Build context
         context = "\n\n".join(results['documents'][0]) if results['documents'][0] else "No context available"
         
-        # Generate answer
-        prompt = f"""Based on the following context, answer the question. If the context doesn't contain relevant information, say so.
+        # Try to generate answer with LLM first, fallback to local RAG
+        answer = None
+        
+        if st.session_state.hf_token:
+            # Generate answer with LLM
+            prompt = f"""Based on the following context, answer the question. If the context doesn't contain relevant information, say so.
 
 Context:
 {context}
@@ -363,8 +379,12 @@ Context:
 Question: {question}
 
 Answer:"""
+            
+            answer = query_huggingface(prompt, st.session_state.hf_token)
         
-        answer = query_huggingface(prompt, st.session_state.hf_token)
+        # If no LLM answer, use local RAG-based answer
+        if not answer:
+            answer = generate_answer_from_context(question, results['documents'][0] if results['documents'] else [])
         
         # Add to chat history
         st.session_state.chat_history.append({
