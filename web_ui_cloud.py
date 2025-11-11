@@ -119,6 +119,7 @@ def generate_answer_from_context(question, context_docs):
         return "I couldn't find any relevant information in your documents to answer this question."
     
     import re
+    from collections import Counter
     
     # Combine and clean up the context
     full_context = " ".join(context_docs)
@@ -129,43 +130,81 @@ def generate_answer_from_context(question, context_docs):
     # Remove excessive whitespace
     full_context = re.sub(r'\s+', ' ', full_context).strip()
     
-    # Extract sentences that might answer the question
-    sentences = re.split(r'[.!?]+\s+', full_context)
+    # Extract sentences
+    sentences = re.split(r'(?<=[.!?])\s+', full_context)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]  # Filter short fragments
     
-    # Find sentences containing keywords from the question
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_sentences = []
+    for sentence in sentences:
+        sentence_normalized = sentence.lower()[:100]  # Compare first 100 chars
+        if sentence_normalized not in seen:
+            seen.add(sentence_normalized)
+            unique_sentences.append(sentence)
+    
+    # Find most relevant sentences based on question keywords
     question_words = set(question.lower().split())
     question_words = {w for w in question_words if len(w) > 3}  # Only meaningful words
     
-    relevant_sentences = []
-    for sentence in sentences:
+    # Score sentences
+    scored_sentences = []
+    for sentence in unique_sentences:
         sentence_lower = sentence.lower()
-        # Count how many question words appear in this sentence
+        # Count keyword matches
         matches = sum(1 for word in question_words if word in sentence_lower)
-        if matches > 0:
-            relevant_sentences.append((matches, sentence))
+        # Prefer sentences at the beginning (likely to be definitions/introductions)
+        position_score = 1.0 / (unique_sentences.index(sentence) + 1)
+        # Prefer sentences with moderate length (not too short, not too long)
+        length_score = 1.0 if 50 < len(sentence) < 300 else 0.5
+        
+        total_score = matches + (position_score * 0.3) + (length_score * 0.2)
+        
+        if total_score > 0:
+            scored_sentences.append((total_score, sentence))
     
-    # Sort by relevance and take top sentences
-    relevant_sentences.sort(reverse=True, key=lambda x: x[0])
-    top_sentences = [s[1] for s in relevant_sentences[:5]]  # Top 5 sentences
+    # Sort by relevance
+    scored_sentences.sort(reverse=True, key=lambda x: x[0])
+    
+    # Take top 3-4 most relevant sentences
+    top_sentences = [s[1] for s in scored_sentences[:4]]
     
     if top_sentences:
-        answer_text = ". ".join(top_sentences)
-        # Limit length
-        if len(answer_text) > 1200:
-            answer_text = answer_text[:1200] + "..."
+        # Create a structured summary
+        answer_parts = []
+        
+        # Try to identify if first sentence is a definition
+        first_sentence = top_sentences[0]
+        if any(word in first_sentence.lower() for word in ['is', 'refers to', 'means', 'defined as']):
+            answer_parts.append(f"**Definition:** {first_sentence}")
+            remaining = top_sentences[1:]
+        else:
+            remaining = top_sentences
+        
+        # Add remaining sentences as key points
+        if remaining:
+            if answer_parts:
+                answer_parts.append(f"\n**Key Points:**")
+            for i, sentence in enumerate(remaining, 1):
+                answer_parts.append(f"{i}. {sentence}")
+        
+        answer_text = "\n\n".join(answer_parts)
     else:
-        # Fallback: just show beginning of context
-        answer_text = full_context[:1200] + "..."
+        # Fallback: show beginning of context
+        answer_text = full_context[:800] + "..."
     
-    answer = f"""Based on your documents, here's what I found:
-
-📄 **Answer:**
+    answer = f"""Based on your documents:
 
 {answer_text}
 
 ---
 
-💡 **Note:** This is extracted from your uploaded documents. For AI-generated summaries and more natural answers, add a FREE HuggingFace token: https://huggingface.co/settings/tokens"""
+⚠️ **Limited Explanation:** Without an AI model, I can only extract and organize text from your documents.
+
+🎯 **For Real AI Explanations:** Add a FREE HuggingFace token (takes 2 min):
+   • Get token: https://huggingface.co/settings/tokens
+   • Add to Streamlit Secrets: `HF_TOKEN = "your_token"`
+   • Get AI-generated summaries, better answers, and natural explanations!"""
     
     return answer
 
