@@ -97,17 +97,21 @@ st.markdown("""
 # Initialize ChromaDB and Embeddings
 @st.cache_resource
 def initialize_system():
-    """Initialize the RAG system components"""
+    """Initialize the RAG system components with PERSISTENT storage"""
     from sentence_transformers import SentenceTransformer
     import chromadb
+    import os
     
     # Initialize embedding model
     model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
     
-    # Initialize ChromaDB
-    client = chromadb.PersistentClient(path="./chroma_db")
+    # PERSIST ChromaDB to disk (survives cloud restarts!)
+    persist_dir = "./chroma_db_cloud"
+    os.makedirs(persist_dir, exist_ok=True)
+    
+    client = chromadb.PersistentClient(path=persist_dir)
     collection = client.get_or_create_collection(
-        name="rag_documents",
+        name="rag_documents_v2",  # New version with compressed chunks
         metadata={"hnsw:space": "cosine"}
     )
     
@@ -437,28 +441,75 @@ if ask_button and question:
             n_results=3
         )
         
-        # Build context
-        context = "\n\n".join(results['documents'][0]) if results['documents'][0] else "No context available"
+        # DEBUG: Show retrieved chunks
+        if results['documents'][0]:
+            with st.expander("🔍 Debug: Retrieved Chunks", expanded=False):
+                for i, chunk in enumerate(results['documents'][0], 1):
+                    st.text_area(f"Chunk {i}", chunk, height=100)
+        
+        # COMPRESS chunks to 1-2 sentences each (forces abstraction)
+        compressed_chunks = []
+        if results['documents'][0]:
+            import re
+            for chunk in results['documents'][0]:
+                # Clean up text
+                clean_chunk = re.sub(r'([a-z])([A-Z])', r'\1 \2', chunk)
+                clean_chunk = re.sub(r'\s+', ' ', clean_chunk).strip()
+                # Extract first 2 meaningful sentences
+                sentences = re.split(r'[.!?]+\s+', clean_chunk)
+                compressed = '. '.join(sentences[:2])[:300]
+                compressed_chunks.append(compressed)
+        
+        # Build compressed context
+        context = "\n\n".join(compressed_chunks) if compressed_chunks else "No context available"
         
         # Try to generate answer with LLM first, fallback to local RAG
         answer = None
         use_local_rag = True  # Default to local RAG
         
         if st.session_state.hf_token:
-            # Generate answer with LLM
-            prompt = f"""Based on the following context, answer the question. If the context doesn't contain relevant information, say so.
+            # STRICT PARAPHRASE PROMPT (prevents verbatim copying)
+            prompt = f"""You are an intelligent assistant. Your task is to answer the question using the provided context, but you MUST:
 
-Context:
+1. PARAPHRASE all information - NEVER copy text verbatim
+2. SYNTHESIZE the information into a clear, natural explanation
+3. Use your own words to explain the concepts
+4. If the context is unclear, say so briefly
+
+Context (use these ideas, NOT these exact words):
 {context}
 
 Question: {question}
+
+Instructions: Write a clear, natural answer in YOUR OWN WORDS. Do NOT copy phrases directly from the context. Explain the concept as if teaching someone.
 
 Answer:"""
             
             answer = query_huggingface(prompt, st.session_state.hf_token)
             
-            # Check if answer is an error message - if so, fall back to local RAG
+            # POST-CHECK: Detect long exact matches (verbatim copying)
             if answer and not (answer.startswith("⚠️") or answer.startswith("❌") or "unavailable" in answer.lower()):
+                # Check for verbatim copying
+                import difflib
+                for chunk in (results['documents'][0] if results['documents'] else []):
+                    # Find longest common substring
+                    seq = difflib.SequenceMatcher(None, answer.lower(), chunk.lower())
+                    match = seq.find_longest_match(0, len(answer), 0, len(chunk))
+                    if match.size > 100:  # If >100 chars copied verbatim
+                        st.warning("⚠️ Detected verbatim copying. Regenerating with stricter prompt...")
+                        # Re-prompt with even stricter instructions
+                        prompt = f"""CRITICAL: You must EXPLAIN in simple terms, NOT copy text!
+
+Question: {question}
+
+Context: {context}
+
+Write a SHORT explanation (3-4 sentences max) using COMPLETELY DIFFERENT WORDS. Pretend you're explaining to a friend who hasn't read the context.
+
+Answer:"""
+                        answer = query_huggingface(prompt, st.session_state.hf_token)
+                        break
+                
                 use_local_rag = False
         
         # Use local RAG-based answer if no valid LLM response

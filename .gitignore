@@ -40,6 +40,8 @@ env/
 *.db
 *.sqlite
 chroma_db/
+chroma_db_cloud/
+chroma_db_free/
 my_db/
 *.chroma
 
