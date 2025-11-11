@@ -301,10 +301,19 @@ with st.sidebar:
         except Exception as e:
             st.session_state.hf_token = ""
     
-    # Show token status
+    # Show token status with DEBUG INFO
     if st.session_state.hf_token:
         st.success("✅ HuggingFace token configured!")
+        # DEBUG: Show token is actually loaded
+        token_preview = st.session_state.hf_token
+        if len(token_preview) > 8:
+            masked = f"{token_preview[:4]}...{token_preview[-4:]}"
+        else:
+            masked = "***"
+        st.info(f"🔍 **DEBUG:** Token detected: `{masked}`")
+        st.caption(f"Token length: {len(st.session_state.hf_token)} characters")
     else:
+        st.error("❌ NO TOKEN DETECTED!")
         with st.expander("🔑 HuggingFace Token Required", expanded=True):
             st.warning("⚠️ Token not found in secrets. Add it for AI models to work!")
             st.info("""
@@ -488,6 +497,11 @@ Answer:"""
             
             answer = query_huggingface(prompt, st.session_state.hf_token)
             
+            # DEBUG: Show what the LLM returned
+            st.info(f"🔍 **DEBUG:** LLM Response Type: {type(answer).__name__}, Length: {len(str(answer)) if answer else 0}")
+            if answer:
+                st.caption(f"First 100 chars: {str(answer)[:100]}...")
+            
             # POST-CHECK: Detect long exact matches (verbatim copying)
             if answer and not (answer.startswith("⚠️") or answer.startswith("❌") or "unavailable" in answer.lower()):
                 # Check for verbatim copying
@@ -521,12 +535,16 @@ Your simplified explanation:"""
         # Use local RAG-based answer if no valid LLM response
         if use_local_rag:
             answer = generate_answer_from_context(question, results['documents'][0] if results['documents'] else [])
+            generation_method = "🔧 Local Extraction (No LLM)"
+        else:
+            generation_method = "🤖 AI LLM Generated"
         
-        # Add to chat history
+        # Add to chat history with generation method
         st.session_state.chat_history.append({
             'question': question,
             'answer': answer,
-            'sources': results['documents'][0][:3] if results['documents'] else []
+            'sources': results['documents'][0][:3] if results['documents'] else [],
+            'method': generation_method
         })
 
 # Display chat history
@@ -536,6 +554,10 @@ if st.session_state.chat_history:
     for chat in reversed(st.session_state.chat_history):
         with st.container():
             st.markdown(f"**🙋 You asked:** {chat['question']}")
+            
+            # Show generation method for debugging
+            method = chat.get('method', '❓ Unknown')
+            st.caption(f"**Generation Method:** {method}")
             
             st.markdown(f"""
             <div class="answer-box">
