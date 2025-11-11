@@ -118,19 +118,54 @@ def generate_answer_from_context(question, context_docs):
     if not context_docs:
         return "I couldn't find any relevant information in your documents to answer this question."
     
-    # Combine all retrieved context
-    full_context = "\n\n".join(context_docs)
+    import re
     
-    # Simple extractive answer: return most relevant chunks
+    # Combine and clean up the context
+    full_context = " ".join(context_docs)
+    
+    # Fix common PDF extraction issues
+    # Add spaces before capital letters that follow lowercase letters
+    full_context = re.sub(r'([a-z])([A-Z])', r'\1 \2', full_context)
+    # Remove excessive whitespace
+    full_context = re.sub(r'\s+', ' ', full_context).strip()
+    
+    # Extract sentences that might answer the question
+    sentences = re.split(r'[.!?]+\s+', full_context)
+    
+    # Find sentences containing keywords from the question
+    question_words = set(question.lower().split())
+    question_words = {w for w in question_words if len(w) > 3}  # Only meaningful words
+    
+    relevant_sentences = []
+    for sentence in sentences:
+        sentence_lower = sentence.lower()
+        # Count how many question words appear in this sentence
+        matches = sum(1 for word in question_words if word in sentence_lower)
+        if matches > 0:
+            relevant_sentences.append((matches, sentence))
+    
+    # Sort by relevance and take top sentences
+    relevant_sentences.sort(reverse=True, key=lambda x: x[0])
+    top_sentences = [s[1] for s in relevant_sentences[:5]]  # Top 5 sentences
+    
+    if top_sentences:
+        answer_text = ". ".join(top_sentences)
+        # Limit length
+        if len(answer_text) > 1200:
+            answer_text = answer_text[:1200] + "..."
+    else:
+        # Fallback: just show beginning of context
+        answer_text = full_context[:1200] + "..."
+    
     answer = f"""Based on your documents, here's what I found:
 
-📄 **Relevant Information:**
+📄 **Answer:**
 
-{full_context[:1500]}
+{answer_text}
 
 ---
 
-💡 **Note:** This is a direct extract from your documents. For AI-generated summaries and more natural answers, add a HuggingFace token (FREE): https://huggingface.co/settings/tokens"""
+💡 **Note:** This is extracted from your uploaded documents. For AI-generated summaries and more natural answers, add a FREE HuggingFace token: https://huggingface.co/settings/tokens"""
     
     return answer
 
