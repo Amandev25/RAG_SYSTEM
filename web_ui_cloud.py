@@ -451,16 +451,17 @@ if ask_button and question:
         compressed_chunks = []
         if results['documents'][0]:
             import re
-            for chunk in results['documents'][0]:
+            for i, chunk in enumerate(results['documents'][0], 1):
                 # Clean up text
                 clean_chunk = re.sub(r'([a-z])([A-Z])', r'\1 \2', chunk)
                 clean_chunk = re.sub(r'\s+', ' ', clean_chunk).strip()
                 # Extract first 2 meaningful sentences
                 sentences = re.split(r'[.!?]+\s+', clean_chunk)
                 compressed = '. '.join(sentences[:2])[:300]
-                compressed_chunks.append(compressed)
+                # Add chunk ID for citation
+                compressed_chunks.append(f"[Chunk {i}]: {compressed}")
         
-        # Build compressed context
+        # Build compressed context with chunk IDs
         context = "\n\n".join(compressed_chunks) if compressed_chunks else "No context available"
         
         # Try to generate answer with LLM first, fallback to local RAG
@@ -468,20 +469,20 @@ if ask_button and question:
         use_local_rag = True  # Default to local RAG
         
         if st.session_state.hf_token:
-            # STRICT PARAPHRASE PROMPT (prevents verbatim copying)
-            prompt = f"""You are an intelligent assistant. Your task is to answer the question using the provided context, but you MUST:
+            # ULTRA-STRICT PARAPHRASE PROMPT (8-char verbatim limit)
+            prompt = f"""SYSTEM:
 
-1. PARAPHRASE all information - NEVER copy text verbatim
-2. SYNTHESIZE the information into a clear, natural explanation
-3. Use your own words to explain the concepts
-4. If the context is unclear, say so briefly
+You are a precise assistant. Using ONLY the supplied short summaries (not raw document text), answer the user's question in your OWN words.
 
-Context (use these ideas, NOT these exact words):
+- Provide a concise 2-4 sentence answer for definitions; up to 6 sentences for explanations.
+- Do NOT copy more than 8 consecutive characters verbatim from the original documents.
+- If you include exact wording, use quotes and include the page/chunk id next to it.
+- Add a one-line "Sources: ..." at the end listing chunk IDs or page numbers you used.
+
+Context Summaries:
 {context}
 
 Question: {question}
-
-Instructions: Write a clear, natural answer in YOUR OWN WORDS. Do NOT copy phrases directly from the context. Explain the concept as if teaching someone.
 
 Answer:"""
             
@@ -495,18 +496,23 @@ Answer:"""
                     # Find longest common substring
                     seq = difflib.SequenceMatcher(None, answer.lower(), chunk.lower())
                     match = seq.find_longest_match(0, len(answer), 0, len(chunk))
-                    if match.size > 100:  # If >100 chars copied verbatim
+                    if match.size > 50:  # If >50 chars copied verbatim (stricter!)
                         st.warning("⚠️ Detected verbatim copying. Regenerating with stricter prompt...")
-                        # Re-prompt with even stricter instructions
-                        prompt = f"""CRITICAL: You must EXPLAIN in simple terms, NOT copy text!
+                        # Re-prompt with ULTRA-strict instructions
+                        prompt = f"""CRITICAL SYSTEM INSTRUCTION:
 
-Question: {question}
+You FAILED the previous attempt by copying text verbatim. Try again.
+
+RULES:
+- Write ONLY 2-3 SHORT sentences
+- Use COMPLETELY DIFFERENT WORDS than the context
+- MAXIMUM 8 consecutive characters from source
+- Explain as if to a 5-year-old who cannot see the context
 
 Context: {context}
+Question: {question}
 
-Write a SHORT explanation (3-4 sentences max) using COMPLETELY DIFFERENT WORDS. Pretend you're explaining to a friend who hasn't read the context.
-
-Answer:"""
+Your simplified explanation:"""
                         answer = query_huggingface(prompt, st.session_state.hf_token)
                         break
                 
